@@ -1,25 +1,30 @@
 // Modules
 const express=require('express');
 const bodyParser=require('body-parser');
-const mongoose=require('mongoose');
 const cors=require('cors');
 const API=express();
 
 API.use(cors());
-API.use(bodyParser.json({limit: "50mb"}));
-API.use(bodyParser.urlencoded({extended: false, limit: "50mb"}));
+API.use(bodyParser.json());
+API.use(bodyParser.urlencoded({extended: false}));
 
 const redis = require("redis");
 const client = redis.createClient();
-var redisSearch = require('redisearch');
 
-var postSearch = redisSearch.createSearch('mypostsearch', [client]);
+const Redis = require('ioredis');
+const redisJ = new Redis();
+const JSONCache = require('redis-json'); 
+const jsonCache = new JSONCache(redisJ, {prefix: 'cache:'});
 
+var Search = require('redis-search');
+var search = Search.createSearch('user_search');
+
+// Redis Base
 client.on("error", function(error) {
   console.error("Error While Connecting to Redis => "+error);
 });
 client.on("connect", function() { 
-  console.log("Connection Successfully established to Redis"); 
+  console.log("Connection Successfully established to Redis Base"); 
 }); 
 
 API.post('/create-user',(req,res,next)=>{
@@ -102,10 +107,102 @@ API.post('/fetch-user-data',(req,res,next)=>{
           }
         })
     }
-  });
+  })
 })
 
 
+// Redis JSON 
+API.post('/user-store',(req,res,next)=>{
+  var post = req.body;
+ 
+  jsonCache.get(post.email).then((data)=>{
+    if(data==undefined)
+    {
+      const user = {
+        name: post.name,
+        age: post.age,
+        address: {
+          locality: post.locality,
+          pincode: post.pincode
+        },
+        mobile:post.mobile
+      }
+       
+      jsonCache.set(post.email, user)
+      .then(()=>{
+        search.index(post.name,post.email);
+        res.json({
+          status:200,
+          message:"User Created Successfully"
+        })
+      })
+      .catch((error)=>{
+        res.json({
+          status:500,
+          message:"Internal Server Error"
+        })
+      })
+    }
+    else
+    {
+      res.json({
+        status:409,
+        message:"User Already Exists"
+      })
+    }
+  })
+  .catch((error)=>{
+    res.json({
+      status:500,        
+      message:"Internal Server Error"
+    })
+  })
+})
+
+API.post('/user-get',(req,res,next)=>{
+  var post = req.body;
+  jsonCache.get(post.email).then((data)=>{
+    if(data==undefined)
+    {
+      res.json({
+        status:404,        
+        message:"Not Found"
+      })
+    }
+    else
+    {
+      res.json({
+        status:200,        
+        message:"User Found",
+        user:data
+      })
+    }
+  })
+  .catch((error)=>{
+    res.json({
+      status:500,        
+      message:"Internal Server Error"
+    })
+  })
+})
+
+// Redis Search
+API.post("/search",(req,res,next)=>{
+  var post = req.body;
+  search
+  .type('and')
+  .query(query = post.searchQuery, function(err, ids) {
+      if (err) throw err;
+      else
+      {
+        res.json({
+          status:200,
+          message:"Success",
+          users:ids
+        })    
+      }
+  });
+})
 
 port = 5000;
 API.listen(port,()=>{

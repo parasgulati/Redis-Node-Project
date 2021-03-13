@@ -12,8 +12,13 @@
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
+    "iorejson": "^0.1.1",
     "redis": "^3.0.2",
-    "redis-json": "^5.0.0",
+    "redis-json": "^3.0.0",
+    "redis-json-client": "^0.2.8",
+    "redis-rejson": "^1.0.0",
+    "redis-search": "0.0.1",
+    "redis-store-json": "^1.1.0",
     "redisearch": "0.0.11",
     "sync-loop": "^0.1.1"
   }
